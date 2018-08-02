@@ -24,9 +24,8 @@ import yaml
 
 from monodrive import SimulatorConfiguration, VehicleConfiguration
 
-
-from monodrive_ros_bridge.bridge import MonoRosBridge
-from monodrive_ros_bridge.bridge_with_rosbag import MonoRosBridgeWithBag
+from .bridge import MonoRosBridge
+from .bridge_with_rosbag import MonoRosBridgeWithBag
 
 
 def main():
