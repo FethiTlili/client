@@ -73,9 +73,13 @@ class BaseSensorUI(object):
         # cleanup
         self.process_data_thread.join()
         self.render_state.value = constants.THREAD_STATE_STOPPING_2
+
+        count = 0
         while self.render_state.value == constants.THREAD_STATE_STOPPING_2:
-            logging.getLogger("sensor").debug("waiting for sensor render accept %s" % self.name)
+            if count % 20 == 0:
+                logging.getLogger("sensor").debug("waiting for sensor render accept(%s) %s" % (count, self.name))
             time.sleep(0.1)
+            count += 1
         logging.getLogger("sensor").info("Exiting rendering_main %s" % self.name)
     
     def stop_rendering(self):

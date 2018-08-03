@@ -304,6 +304,11 @@ class BaseSensor(multiprocessing.Process):
         self.destroy_socket()
         logging.getLogger("sensor").info('*** stopped %s' % self.name)
 
+        # print("sensor enumerate threads", self.name)
+        # threads = threading.enumerate()
+        # for _t in threads:
+        #    print("{0} alive:{1} daemon:{2}".format(_t.name, _t.isAlive(), _t.isDaemon()))
+
     def terminate(self):
         super(BaseSensor, self).terminate()
         logging.getLogger("sensor").info('*** terminate %s' % self.name)
