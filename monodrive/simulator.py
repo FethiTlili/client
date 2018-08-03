@@ -9,7 +9,7 @@ from logging.handlers import RotatingFileHandler
 
 from multiprocessing import Event, Process, Queue
 import threading
-#import os, psutil  # for removing processing after episode
+import os, psutil  # for removing processing after episode
 #try:
 
 import sys
@@ -54,21 +54,24 @@ class Simulator(object):
 
     def stop(self):
 
+
+
         # Stop all processes
         logging.getLogger("simulator").info("start shutting down simulator vehicles")
         self.ego_vehicle.stop()
         logging.getLogger("simulator").info("simulator vehicles shutdown complete")
 
+        #Disconnect from server
+        self.client.disconnect()
+        self.client.stop()
 
         ## get the pid of this program
-        #pid=os.getpid()
-
+        pid=os.getpid()
         ## when you want to kill everything, including this program
-        #self.kill_process_tree(pid, False)
+        self.kill_process_tree(pid, False)
 
-                # Disconnect from server
-        #self.client.disconnect()
-        #self.client.stop()
+
+
 
     def disconnect(self):
         logging.getLogger("simulator").info("start shutting down simulator client")

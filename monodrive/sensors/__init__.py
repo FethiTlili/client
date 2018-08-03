@@ -13,7 +13,7 @@ import os.path
 
 import os
 #import psutil , os
-#import prctl
+import prctl
 
 try:
     import queue
@@ -134,9 +134,13 @@ class SensorManager:
         logging.getLogger("sensor").info("sensor manager stopping sensor rendering windows")
         [s.stop_rendering() for s in self.sensor_list]
 
-        logging.getLogger("sensor").info("sensor manager waiting for sensor rendering windows")
-        [s.wait_for_rendering_finish() for s in self.sensor_list]
+        #clear queues
+        logging.getLogger("sensor").info("sensor manager clearing queues")
+        [s.clear_queues() for s in self.sensor_list]
 
+        #logging.getLogger("sensor").info("sensor manager waiting for sensor rendering windows")
+        #[s.wait_for_rendering_finish() for s in self.sensor_list]
+        time.sleep(10.0)
         logging.getLogger("sensor").info("sensor termitation complete")
 
     def monitor_sensors(self):
@@ -201,6 +205,10 @@ class SensorManager:
 BITS_PER_BYTE = 8.0
 BYTE_PER_MBYTE = 1000000.0
 
+PROCESS_STATE_RUNNING = 2
+PROCESS_STATE_STARTING = 1
+PROCESS_STATE_STOPPED = 0
+PROCESS_STATE_STOPPING = -1
 
 class BaseSensor(multiprocessing.Process):
     def __init__(self, idx, config, simulator_config, **kwargs):
@@ -249,6 +257,7 @@ class BaseSensor(multiprocessing.Process):
         self.sensors_got_data_count = manager.Value('i', 0)
         self.sock = None
         self.thread_state = manager.Value('i', constants.THREAD_STATE_STOP)
+        self.process_state = manager.Value('i', PROCESS_STATE_STOPPED)
 
     @classmethod
     def init_display_queue(cls):
@@ -264,6 +273,18 @@ class BaseSensor(multiprocessing.Process):
             if type(s).__name__ == cls.__name__:
                 return s
         return None
+
+    def clear_queues(self):
+        # bug in multiprocessing.Queue requires shared Queues to be empty and possibly cancel_join_thread
+        while not self.q_display.empty():
+            self.q_display.get()
+            self.q_display.cancel_join_thread()
+        logging.getLogger("sensor").info("***Destroyed Display Queue: %s" % self.name)
+        while not self.q_vehicle.empty():
+            self.q_vehicle.get()
+            self.q_vehicle.cancel_join_thread()
+        logging.getLogger("sensor").info("***Destroyed Vehicle Queue: %s" % self.name)
+        
 
     def get_frame_size(self):
         return self.packet_size
@@ -297,8 +318,8 @@ class BaseSensor(multiprocessing.Process):
     def stop(self):
         logging.getLogger("sensor").info('*** stop %s' % self.name)
 
-        self.thread_state.value = constants.THREAD_STATE_STOP  # Will stop UDP and Logging thread
-        while self.thread_state.value >= constants.THREAD_STATE_STOP:
+        self.thread_state.value = PROCESS_STATE_STOPPED  # Will stop UDP and Logging thread
+        while self.thread_state.value >= PROCESS_STATE_STOPPED:
             time.sleep(0.1)
 
         self.destroy_socket()
@@ -365,7 +386,7 @@ class BaseSensor(multiprocessing.Process):
         if self.sock is not None:
             try:
                 #self.send_stop_stream_command(simulator)
-                print("destroy_socket %s" % self.name)
+                logging.getLogger("network").info("destroy_socket %s" % self.name)
                 self.sock.shutdown(socket.SHUT_RDWR)
                 self.sock.close()
                 #s.terminate()
@@ -387,7 +408,7 @@ class BaseSensor(multiprocessing.Process):
 
         tries = 0
         #self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 0)
-        #prctl.set_proctitle("monodrive sensor {0}".format(self.name))
+        prctl.set_proctitle("mono{0}".format(self.name))
         while self.is_running():
             
             if self.start_time is None:
@@ -424,7 +445,7 @@ class BaseSensor(multiprocessing.Process):
                 except Exception as e:
                     logging.getLogger("network").warning(
                         'Packet exception: %s for %s' % (str(e), self.name))
-                    print("packet exception: {0}".format(e))
+                    #print("packet exception: {0}".format(e))
                     pass
 
                 # print(self.name, ':', len(packet))

@@ -6,6 +6,7 @@ __version__ = "1.0"
 
 from multiprocessing import Queue
 import socket
+import logging
 
 from monodrive.constants import VELOVIEW_PORT, VELOVIEW_IP
 from . import BaseSensor
@@ -53,14 +54,33 @@ class Lidar(BaseSensorUI, BaseSensor):
         """ Setup connection to the socket listening in Unreal. """
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.settimeout(20)
             #self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             self.veloview_socket = s
             return s
 
+        except socket.timeout:
+            logging.getLogger("sensor").info("closing veloview_socket %s" % self.name)
+            self.veloview_socket.close()
+            self.veloview_socket = None
+
         except Exception as e:
             print('Can send to {0}'.format(str((VELOVIEW_PORT, VELOVIEW_PORT))))
             print("Error {0}".format(e))
+            
             self.veloview_socket = None
             return None
-        
+    
+    def destroy_ui(self):
+
+        #rendinger is veloview so we just shut down the udp socket
+        if self.veloview_socket is not None:
+            try:
+                #self.send_stop_stream_command(simulator)
+                logging.getLogger("sensor").info("destroy_veloview_socket %s" % self.name)
+                #next line is for tcp only
+                #self.veloview_socket.shutdown(socket.SHUT_WR)
+                self.veloview_socket.close()
+            finally:
+                self.veloview_socket = None
             

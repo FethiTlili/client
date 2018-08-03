@@ -7,6 +7,7 @@ __version__ = "1.0"
 
 import logging
 import time
+import prctl
 
 from monodrive import SimulatorConfiguration, VehicleConfiguration
 from monodrive.vehicles import SimpleVehicle
@@ -16,7 +17,7 @@ from monodrive import Simulator
 ManualDriveMode = True
 
 if __name__ == "__main__":
-        
+    prctl.set_proctitle("monodrive")
     # Simulator configuration defines network addresses for connecting to the simulator and material properties
     simulator_config = SimulatorConfiguration('simulator.json')
     

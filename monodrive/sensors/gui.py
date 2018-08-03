@@ -21,11 +21,15 @@ import multiprocessing
 import os
 import time
 import threading
-#import prctl
+import prctl
 
 
 matplotlib.use('TkAgg')
 
+RENDER_RUNNING = 2
+RENDER_STARTING = 1
+RENDER_STOPPED = 0
+RENDER_STOPPING = -1
 
 class BaseSensorUI(object):
     Window_Settings_Lock = multiprocessing.Lock()
@@ -40,7 +44,7 @@ class BaseSensorUI(object):
         self.previous_event = None
 
         manager = multiprocessing.Manager()
-        self.render_state = manager.Value('i', constants.THREAD_STATE_STOP)
+        self.render_state = manager.Value('i', RENDER_STOPPED)
         
 
     def initialize_views(self):
@@ -48,8 +52,8 @@ class BaseSensorUI(object):
         return
 
     def render_views(self):
-        while self.thread_state.value == constants.THREAD_STATE_RUNNING:
-            time.sleep(0.5)
+        while self.thread_state.value == RENDER_RUNNING:
+            time.sleep(0.1)
         return
 
     def process_display_data(self):
@@ -64,49 +68,51 @@ class BaseSensorUI(object):
         self.process_data_thread = threading.Thread(target=self.process_data_loop, args=(self,),
                                                     name=self.name + 'Process_Data_Thread')
         self.process_data_thread.start()
-        while self.render_state.value != constants.THREAD_STATE_RUNNING:
+        # wait here until thread is running
+        while self.render_state.value != RENDER_RUNNING:
             time.sleep(0.05)
 
         # mainloop
+        # wait here until thread is stopped
         self.render_views()
 
         # cleanup
         self.process_data_thread.join()
-        self.render_state.value = constants.THREAD_STATE_STOPPING_2
+        '''self.render_state.value = RENDER_STOPPING
 
         count = 0
-        while self.render_state.value == constants.THREAD_STATE_STOPPING_2:
+        while self.render_state.value == RENDER_STOPPING:
             if count % 20 == 0:
                 logging.getLogger("sensor").debug("waiting for sensor render accept(%s) %s" % (count, self.name))
             time.sleep(0.1)
-            count += 1
+            count += 1'''
         logging.getLogger("sensor").info("Exiting rendering_main %s" % self.name)
     
     def stop_rendering(self):
         logging.getLogger("sensor").debug("shutting down rendering thread: {0}".format(self.name))
-        self.render_state.value = constants.THREAD_STATE_STOP
+        self.render_state.value = RENDER_STOPPING
 
     def wait_for_rendering_finish(self):
 
         logging.getLogger("sensor").debug("remove all data from queues {0}".format(self.name))
 
-        # bug in multiprocessing.Queue requires shared Queues to be empty and possibly cancel_join_thread
+        '''# bug in multiprocessing.Queue requires shared Queues to be empty and possibly cancel_join_thread
         while not self.q_display.empty():
             self.q_display.get()
         self.q_display.cancel_join_thread()
 
         while not self.q_vehicle.empty():
             self.q_vehicle.get()
-        self.q_vehicle.cancel_join_thread()
+        self.q_vehicle.cancel_join_thread()'''
 
         count = 0
-        while self.render_state.value > constants.THREAD_STATE_STOPPING_2:
+        while self.render_state.value > RENDER_STOPPING:
             if count % 20 == 0:
-                logging.getLogger("sensor").info("waiting({1}) for rendering thread: {0}".format(self.name, count))
+                logging.getLogger("sensor").info("waiting({1}) for rendering thread stopping: {0}".format(self.name, count))
             time.sleep(0.1)
             count += 1
 
-        self.render_state.value = constants.THREAD_STATE_STOPPED
+        self.render_state.value = RENDER_STOPPED
 
     def destroy_ui(self):
         # override in subclass
@@ -181,23 +187,28 @@ class BaseSensorUI(object):
     # Render thread entry point
     @staticmethod
     def process_data_loop(sensor):
-        sensor.render_state.value = constants.THREAD_STATE_RUNNING
-        while sensor.render_state.value == constants.THREAD_STATE_RUNNING:
+        prctl.set_proctitle("mono{0}".format(sensor))
+        sensor.render_state.value = RENDER_RUNNING
+
+        # wait here until thread stops
+        while sensor.render_state.value == RENDER_RUNNING:
             sensor.process_display_data()
 
+        # after thread stops
         logging.getLogger("sensor").debug("exiting process_data_loop {0}".format(sensor.name))
         sensor.destroy_ui()
-        sensor.render_state.value = constants.THREAD_STATE_STOPPING_1
+        sensor.render_state.value = RENDER_STOPPED
         logging.getLogger("sensor").debug("done process_data_loop {0}".format(sensor.name))
 
     def get_display_message(self):
         data = None
-        while self.render_state.value == constants.THREAD_STATE_RUNNING:
+        while self.render_state.value == RENDER_RUNNING:
             try:
-                data = self.q_display.get(True, 0.5)
+                data = self.q_display.get(True, 1.0)
                 break
             except Exception as e:
-                # logging.getLogger("sensor").debug("get_display_message timeout {0} {1}".format(self.name, e))
+                #TODO figure oot why this is happing all the time
+                #logging.getLogger("sensor").warning("get_display_message timeout {0} {1}".format(self.name, e))
                 pass
 
         # logging.getLogger("sensor").debug("get_display_message has_data %s %s" % (data is not None, self.name))
