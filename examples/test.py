@@ -6,7 +6,6 @@ __license__ = "MIT"
 __version__ = "1.0"
 
 import logging
-
 import time
 
 from monodrive import SimulatorConfiguration, VehicleConfiguration
@@ -47,7 +46,11 @@ if __name__ == "__main__":
         simulator.stop()
         b_running = False
         logging.getLogger("simulator").info("episode complete")
-        time.sleep(5)
+        time.sleep(1)
+
+    simulator.disconnect()
+
+    print("simulator finished!")
 
 
 
