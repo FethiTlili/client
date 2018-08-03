@@ -75,12 +75,13 @@ class IMU(TkinterSensorUI, BaseSensor):
         self.view_lock.release()
 
     def process_display_data(self):
-        data = self.q_display.get()
-        self.string_accel_x.set('ACCEL_X: {0}'.format(data['acceleration_vector'][0]))
-        self.string_accel_y.set('ACCEL_Y: {0}'.format(data['acceleration_vector'][1]))
-        self.string_accel_z.set('ACCEL_Z: {0}'.format(data['acceleration_vector'][2]))
-        self.string_ang_rate_x.set('ANG RATE X: {0}'.format(data['angular_velocity_vector'][0]))
-        self.string_ang_rate_y.set('ANG RATE Y: {0}'.format(data['angular_velocity_vector'][1]))
-        self.string_ang_rate_z.set('ANG RATE X: {0}'.format(data['angular_velocity_vector'][2]))
-        self.string_timer.set('TIMESTAMP: {0}'.format(data['time_stamp']))
+        data = self.get_display_message()
+        if data is not None:
+            self.string_accel_x.set('ACCEL_X: {0}'.format(data['acceleration_vector'][0]))
+            self.string_accel_y.set('ACCEL_Y: {0}'.format(data['acceleration_vector'][1]))
+            self.string_accel_z.set('ACCEL_Z: {0}'.format(data['acceleration_vector'][2]))
+            self.string_ang_rate_x.set('ANG RATE X: {0}'.format(data['angular_velocity_vector'][0]))
+            self.string_ang_rate_y.set('ANG RATE Y: {0}'.format(data['angular_velocity_vector'][1]))
+            self.string_ang_rate_z.set('ANG RATE X: {0}'.format(data['angular_velocity_vector'][2]))
+            self.string_timer.set('TIMESTAMP: {0}'.format(data['time_stamp']))
         self.update_sensors_got_data_count()

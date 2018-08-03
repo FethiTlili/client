@@ -43,9 +43,10 @@ class Lidar(BaseSensorUI, BaseSensor):
             super(Lidar, self).digest_frame(temp_buffer, time_stamp, game_time)
 
     def process_display_data(self):
-        data_buffer = self.q_display.get()
-        for data in data_buffer:
-            self.veloview_socket.sendto(data, (VELOVIEW_IP, VELOVIEW_PORT))
+        data_buffer = self.get_display_message()
+        if data_buffer is not None:
+            for data in data_buffer:
+                self.veloview_socket.sendto(data, (VELOVIEW_IP, VELOVIEW_PORT))
         self.update_sensors_got_data_count()
 
     def connect(self):

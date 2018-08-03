@@ -182,22 +182,22 @@ class Radar(MatplotlibSensorUI, BaseSensorPacketized):
             self.game_time = packetized_data['game_time']
             packetized_data = packetized_data['data']
 
-        self.view_lock.acquire()
-        if len(packetized_data) > 0:
-            self.process_radar_data_cube(packetized_data)
-            #print('Radar Processing Time: {0}'.format(time.time() - start_time))
-            if self.last_data_frame_processed:
-                self.last_data_frame_processed = False
-                #print('Radar Processing: {0}'.format(time.time() - start_time))
-                # if self.radar_plot is None and self.radar_method is not None:
-                #    self.setup_radar_plots()
-                # if self.radar_signals is None and self.radar_method is not None:
-                    # self.setup_radar_signals()
-                # if self.radar_method is not None:
-                #    self.show_radar_plots()
-                    # self.show_radar_signals()
+            self.view_lock.acquire()
+            if len(packetized_data) > 0:
+                self.process_radar_data_cube(packetized_data)
+                #print('Radar Processing Time: {0}'.format(time.time() - start_time))
+                if self.last_data_frame_processed:
+                    self.last_data_frame_processed = False
+                    #print('Radar Processing: {0}'.format(time.time() - start_time))
+                    # if self.radar_plot is None and self.radar_method is not None:
+                    #    self.setup_radar_plots()
+                    # if self.radar_signals is None and self.radar_method is not None:
+                        # self.setup_radar_signals()
+                    # if self.radar_method is not None:
+                    #    self.show_radar_plots()
+                        # self.show_radar_signals()
 
-        self.view_lock.release()
+            self.view_lock.release()
         if self.bounding_box:
             self.bounding_box.update_sensors_got_data_count()
         self.update_sensors_got_data_count()

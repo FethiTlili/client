@@ -152,14 +152,15 @@ class BoundingBox(MatplotlibSensorUI, BaseSensorPacketized):
         return None
 
     def process_display_data(self):
-        data = self.q_display.get()
-        self.view_lock.acquire()
-        self.x_points = data['x_points']
-        self.y_points = data['y_points']
-        self.x_bounds = data['x_bounds']
-        self.y_bounds = data['y_bounds']
-        self.box_rotations = data['box_rotations']
-        self.view_lock.release()
+        data = self.get_display_message()
+        if data is not None:
+            self.view_lock.acquire()
+            self.x_points = data['x_points']
+            self.y_points = data['y_points']
+            self.x_bounds = data['x_bounds']
+            self.y_bounds = data['y_bounds']
+            self.box_rotations = data['box_rotations']
+            self.view_lock.release()
         self.update_sensors_got_data_count()
 
 

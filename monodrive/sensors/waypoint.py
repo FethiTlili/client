@@ -72,19 +72,20 @@ class Waypoint(MatplotlibSensorUI, BaseSensorPacketized):
         plt.axis((min(x) - margin, max(x) + margin, min(y) - margin, max(y) + margin))
 
     def process_display_data(self):
-        from_queue = self.q_display.get()
+        from_queue = self.get_display_message()
+        if from_queue is not None:
 
-        self.view_lock.acquire()
-        points_by_lane = from_queue['points_by_lane']
-        x_combined = []
-        y_combined = []
-        for points in points_by_lane:
-            x_combined = np.append(x_combined, points[:, 0])
-            y_combined = np.append(y_combined, points[:, 1])
+            self.view_lock.acquire()
+            points_by_lane = from_queue['points_by_lane']
+            x_combined = []
+            y_combined = []
+            for points in points_by_lane:
+                x_combined = np.append(x_combined, points[:, 0])
+                y_combined = np.append(y_combined, points[:, 1])
 
-        self.xy_combined = np.column_stack((x_combined, y_combined))
+            self.xy_combined = np.column_stack((x_combined, y_combined))
 
-        self.view_lock.release()
+            self.view_lock.release()
         self.update_sensors_got_data_count()
 
     def update_views(self, frame):

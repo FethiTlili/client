@@ -63,8 +63,9 @@ class GPS(TkinterSensorUI, BaseSensor):
         self.view_lock.release()
 
     def process_display_data(self):
-        data = self.q_display.get()
-        self.string_lat.set('LAT: {0}'.format(data['lat']))
-        self.string_lng.set('LNG: {0}'.format(data['lng']))
-        self.string_time.set('TIMESTAMP: {0}'.format(data['time_stamp']))
+        data = self.get_display_message()
+        if data is not None:
+            self.string_lat.set('LAT: {0}'.format(data['lat']))
+            self.string_lng.set('LNG: {0}'.format(data['lng']))
+            self.string_time.set('TIMESTAMP: {0}'.format(data['time_stamp']))
         self.update_sensors_got_data_count()

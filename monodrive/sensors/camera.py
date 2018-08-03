@@ -61,13 +61,15 @@ class Camera(TkinterSensorUI, BaseSensorPacketized):
         return data_dict
 
     def get_q_image(self):
-        image_frame = self.q_display.get()
-        image_buffer = image_frame['image']
-        if len(image_buffer) == self.height * self.width * 4:
-            image = np.array(bytearray(image_buffer), dtype=np.uint8).reshape(self.height, self.width, 4)
-        else:
-            image = None
-            logging.getLogger("sensor").error("wrong image size received {0}".format(self.name))
+        image = None
+        image_frame = self.get_display_message()
+        if image_frame is not None:
+            image_buffer = image_frame['image']
+            if len(image_buffer) == self.height * self.width * 4:
+                image = np.array(bytearray(image_buffer), dtype=np.uint8).reshape(self.height, self.width, 4)
+            else:
+                image = None
+                logging.getLogger("sensor").error("wrong image size received {0}".format(self.name))
         return image
 
     def process_bound_data(self, data):
