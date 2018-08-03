@@ -49,7 +49,7 @@ class TeleportVehicle(BaseVehicle):
         return control
     
     def start_keyboard_listener(self):
-        self.keyboard_thread = threading.Thread(target=self._keyboard_listener)
+        self.keyboard_thread = threading.Thread(target=self._keyboard_listener, name='TeleportVehicle._keyboard_listener')
         self.keyboard_thread.start()
 
     def _keyboard_listener(self):

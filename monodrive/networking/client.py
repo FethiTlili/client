@@ -36,7 +36,7 @@ class BaseClient(object):
         self.sock = None
 
         # Start a thread to get data from the socket
-        self.receiving_thread = threading.Thread(target=self.__receiving)
+        self.receiving_thread = threading.Thread(target=self.__receiving, name='client._receiving')
         self.receiving_thread.setDaemon(1)
         #self.receiving_thread.start()
 
@@ -131,7 +131,7 @@ class Client(object):
         self.disconnect = self.message_client.disconnect
         self.b_running = True
         self.queue = Queue()
-        self.main_thread = threading.Thread(target=self.worker, args=(self,))
+        self.main_thread = threading.Thread(target=self.worker, args=(self,), name='client.worker')
         self.main_thread.setDaemon(1)
         self.main_thread.start()
         
@@ -149,6 +149,8 @@ class Client(object):
                 task = self.queue.get()
                 task()
                 self.queue.task_done()
+            else:
+                time.sleep(0.1)
 
     def request(self, message, timeout=5):
         """ Return a response from Unreal """

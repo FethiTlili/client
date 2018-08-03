@@ -172,11 +172,15 @@ class Radar(MatplotlibSensorUI, BaseSensorPacketized):
 
     def process_display_data(self):
         if self.bounding_box is not None:
-            bounding_data = self.bounding_box.q_vehicle.peek()
-            self.process_bound_data(bounding_data)
-        packetized_data = self.q_display.get()
-        self.game_time = packetized_data['game_time']
-        packetized_data = packetized_data['data']
+            bounding_data = self.bounding_box.peek_vehicle_message()
+            if bounding_data is not None:
+                self.process_bound_data(bounding_data)
+
+        packetized_data = self.get_display_message()
+
+        if packetized_data is not None:
+            self.game_time = packetized_data['game_time']
+            packetized_data = packetized_data['data']
 
         self.view_lock.acquire()
         if len(packetized_data) > 0:

@@ -55,10 +55,9 @@ class Simulator(object):
     def stop(self):
 
         # Stop all processes
-        logging.getLogger("simulator").info("start shutting down simulator client")
+        logging.getLogger("simulator").info("start shutting down simulator vehicles")
         self.ego_vehicle.stop()
-        logging.getLogger("simulator").info("simulator client shutdown complete")
-        
+        logging.getLogger("simulator").info("simulator vehicles shutdown complete")
 
 
         ## get the pid of this program
@@ -70,6 +69,13 @@ class Simulator(object):
                 # Disconnect from server
         #self.client.disconnect()
         #self.client.stop()
+
+    def disconnect(self):
+        logging.getLogger("simulator").info("start shutting down simulator client")
+        self.client.disconnect()
+        self.client.stop()
+
+        logging.getLogger("simulator").info("simulator client shutdown complete")
 
     def kill_process_tree(self, pid, including_parent=True):
         parent = psutil.Process(pid)

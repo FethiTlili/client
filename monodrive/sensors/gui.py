@@ -5,6 +5,7 @@ __license__ = "MIT"
 __version__ = "1.0"
 
 import logging
+import monodrive.constants as constants
 
 from matplotlib import pyplot as plt
 from matplotlib.animation import FuncAnimation
@@ -18,6 +19,7 @@ import json
 import matplotlib
 import multiprocessing
 import os
+import time
 import threading
 #import prctl
 
@@ -36,7 +38,9 @@ class BaseSensorUI(object):
         self.window_y_position = 0
         self.view_changing_timer = None
         self.previous_event = None
-        self.b_stop_thread = False
+
+        manager = multiprocessing.Manager()
+        self.render_state = manager.Value('i', constants.THREAD_STATE_STOP)
         
 
     def initialize_views(self):
@@ -44,7 +48,8 @@ class BaseSensorUI(object):
         return
 
     def render_views(self):
-        self.process_data_thread.join()
+        while self.thread_state.value == constants.THREAD_STATE_RUNNING:
+            time.sleep(0.5)
         return
 
     def process_display_data(self):
@@ -54,17 +59,54 @@ class BaseSensorUI(object):
     def rendering_main(self):
         self.view_lock = threading.Lock()
         self.initialize_views()
-        thread_name = self.name + 'Process_Data_Thread'
-        self.process_data_thread = threading.Thread(target=self.process_data_loop, args=(self,), name=thread_name)
+
+        # start processing thread
+        self.process_data_thread = threading.Thread(target=self.process_data_loop, args=(self,),
+                                                    name=self.name + 'Process_Data_Thread')
         self.process_data_thread.start()
+        while self.render_state.value != constants.THREAD_STATE_RUNNING:
+            time.sleep(0.05)
+
+        # mainloop
         self.render_views()
+
+        # cleanup
+        self.process_data_thread.join()
+        self.render_state.value = constants.THREAD_STATE_STOPPING_2
+        while self.render_state.value == constants.THREAD_STATE_STOPPING_2:
+            logging.getLogger("sensor").debug("waiting for sensor render accept %s" % self.name)
+            time.sleep(0.1)
+        logging.getLogger("sensor").info("Exiting rendering_main %s" % self.name)
     
     def stop_rendering(self):
-        logging.getLogger("sensor").info("shutting down rendering thread: {0}".format(self.name))
-        if self.process_data_thread is not None:
-            self.process_data_thread.stop()
-        else:
-            logging.getLogger("sensor").info("no thread: {0}".format(self.name))
+        logging.getLogger("sensor").debug("shutting down rendering thread: {0}".format(self.name))
+        self.render_state.value = constants.THREAD_STATE_STOP
+
+    def wait_for_rendering_finish(self):
+
+        logging.getLogger("sensor").debug("remove all data from queues {0}".format(self.name))
+
+        # bug in multiprocessing.Queue requires shared Queues to be empty and possibly cancel_join_thread
+        while not self.q_display.empty():
+            self.q_display.get()
+        self.q_display.cancel_join_thread()
+
+        while not self.q_vehicle.empty():
+            self.q_vehicle.get()
+        self.q_vehicle.cancel_join_thread()
+
+        count = 0
+        while self.render_state.value > constants.THREAD_STATE_STOPPING_2:
+            if count % 20 == 0:
+                logging.getLogger("sensor").info("waiting({1}) for rendering thread: {0}".format(self.name, count))
+            time.sleep(0.1)
+            count += 1
+
+        self.render_state.value = constants.THREAD_STATE_STOPPED
+
+    def destroy_ui(self):
+        # override in subclass
+        pass
         
     #@staticmethod
     #def stop(self):
@@ -135,9 +177,27 @@ class BaseSensorUI(object):
     # Render thread entry point
     @staticmethod
     def process_data_loop(sensor):
-        #prctl.set_proctitle("monodrive rending {0}".format(sensor))
-        while sensor.running:
+        sensor.render_state.value = constants.THREAD_STATE_RUNNING
+        while sensor.render_state.value == constants.THREAD_STATE_RUNNING:
             sensor.process_display_data()
+
+        logging.getLogger("sensor").debug("exiting process_data_loop {0}".format(sensor.name))
+        sensor.destroy_ui()
+        sensor.render_state.value = constants.THREAD_STATE_STOPPING_1
+        logging.getLogger("sensor").debug("done process_data_loop {0}".format(sensor.name))
+
+    def get_display_message(self):
+        data = None
+        while self.render_state.value == constants.THREAD_STATE_RUNNING:
+            try:
+                data = self.q_display.get(True, 0.5)
+                break
+            except Exception as e:
+                # logging.getLogger("sensor").debug("get_display_message timeout {0} {1}".format(self.name, e))
+                pass
+
+        # logging.getLogger("sensor").debug("get_display_message has_data %s %s" % (data is not None, self.name))
+        return data
 
 
 class MatplotlibSensorUI(BaseSensorUI):
@@ -145,6 +205,7 @@ class MatplotlibSensorUI(BaseSensorUI):
         super(MatplotlibSensorUI, self).__init__(**kwargs)
         self.animation = None
         self.main_plot = None
+        self.running_ui = False
 
     def initialize_views(self):
         self.main_plot = plt.figure(10)
@@ -154,17 +215,20 @@ class MatplotlibSensorUI(BaseSensorUI):
 
     def render_views(self):
         self.animation = FuncAnimation(self.main_plot, self.update_views, interval=100)
-        plt.show()
+        self.running_ui = True
+        plt.show(block=False)
+        while self.running_ui:
+            time.sleep(0.5)
+        if plt is not None:
+            plt.close()
+            self.main_plot = None
 
     def update_views(self, frame):
         return
     
-    def stop_rendering(self):
-        # override in subclass
-        logging.getLogger("sensor").info("***{0}".format(self.name))
-        if plt != None:
-            plt.close()
-            self.main_plot = None
+    def destroy_ui(self):
+        logging.getLogger("sensor").info("*** destroy ui {0}".format(self.name))
+        self.running_ui = False
 
 
 class TkinterSensorUI(BaseSensorUI):
@@ -181,13 +245,13 @@ class TkinterSensorUI(BaseSensorUI):
         self.master_tk.bind('<Configure>', self.window_configure_event)
 
     def render_views(self):
-        mainloop()
+        self.master_tk.mainloop()
 
-    def stop_rendering(self):
-        # override in subclass
-        logging.getLogger("sensor").info("***{0}".format(self.name))
-        if self.master_tk != None:
-            self.master_tk.destroy()
+    def destroy_ui(self):
+        logging.getLogger("sensor").info("*** destroy ui {0}".format(self.name))
+        if self.master_tk is not None:
+            self.master_tk.focus_set()
+            self.master_tk.quit()
 
 
     def window_configure_event(self, event):

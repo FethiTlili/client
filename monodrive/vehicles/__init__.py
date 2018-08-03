@@ -35,7 +35,7 @@ class BaseVehicle(object):
     def start(self):
         self.sensor_manager.start()
         self.previous_control_sent_time = time.time()
-        self.control_thread = threading.Thread(target=self.control_monitor)
+        self.control_thread = threading.Thread(target=self.control_monitor, name='BaseVehicle.control_monitor')
         self.control_thread.start()
 
     def start_scenario(self, scenario):

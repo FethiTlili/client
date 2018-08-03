@@ -88,7 +88,7 @@ class Camera(TkinterSensorUI, BaseSensorPacketized):
         if self.display_process:
 
             if self.bounding_box is not None:
-                bounding_data = self.bounding_box.q_vehicle.peek()
+                bounding_data = self.bounding_box.peek_vehicle_message()
                 self.process_bound_data(bounding_data)
 
             if self.hdmi_streaming:
@@ -125,22 +125,23 @@ class Camera(TkinterSensorUI, BaseSensorPacketized):
             else:
                 self.current_image = self.get_q_image()
 
-                image = self.current_image
-                if self.bounding_box is not None and self.b_draw_bounding_boxes:
-                    image = self.draw_bounding_boxes(self.current_image)
+                if self.current_image is not None:
+                    image = self.current_image
+                    if self.bounding_box is not None and self.b_draw_bounding_boxes:
+                        image = self.draw_bounding_boxes(self.current_image)
 
-                image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-                image = Image.fromarray(image)
-                image = ImageTk.PhotoImage(image)
+                    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+                    image = Image.fromarray(image)
+                    image = ImageTk.PhotoImage(image)
 
-                # Only update window size when new image size
-                if self.master_tk.winfo_width() != len(self.current_image[0]) or self.master_tk.winfo_height() != len(self.current_image):
-                    window_size = str(len(self.current_image[0])) + 'x' + str(len(self.current_image))
-                    self.master_tk.geometry(window_size)
-                self.panel.configure(image=image)
-                self.panel.image = image
+                    # Only update window size when new image size
+                    if self.master_tk.winfo_width() != len(self.current_image[0]) or self.master_tk.winfo_height() != len(self.current_image):
+                        window_size = str(len(self.current_image[0])) + 'x' + str(len(self.current_image))
+                        self.master_tk.geometry(window_size)
+                    self.panel.configure(image=image)
+                    self.panel.image = image
 
-                self.frame_num += 1
+                    self.frame_num += 1
 
         if self.bounding_box:
             self.bounding_box.update_sensors_got_data_count()
@@ -236,7 +237,7 @@ class MultiCamera(Camera):
         self.camera_ids = self.config["camera_ids"]
 
     def process_bound_data(self, data):
-        
+
         self.bounding_box_positions = []
         self.bounding_box_is_in_camera_fov = []
         i = 0

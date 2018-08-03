@@ -57,7 +57,7 @@ class SingleQueue(sq):
         res = None
         needs_loop = True
         while needs_loop:
-            self.__wait_for_data(block)
+            self.__wait_for_data(block, timeout)
 
             if not self._qlock.acquire(True, None):
                 raise Empty
@@ -76,16 +76,23 @@ class SingleQueue(sq):
             res = super(SingleQueue, self).get(block, timeout)
         return res
 
-    def __wait_for_data(self, block):
+    def __wait_for_data(self, block, timeout):
         if block:
-            while self.empty():
+            if timeout is not None:
+                deadline = time.time() + timeout
+            else:
+                deadline = None
+
+            while self.empty() and (deadline is None or deadline > time.time()):
                 time.sleep(0.01)
+            if self.empty():
+                raise Empty
 
     def peek(self, block=True, timeout=None):
         res = None
         needs_loop = True
         while needs_loop:
-            self.__wait_for_data(block)
+            self.__wait_for_data(block, timeout)
 
             if not self._qlock.acquire(True, None):
                 raise Empty
