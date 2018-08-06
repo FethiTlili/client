@@ -145,9 +145,9 @@ class Camera(TkinterSensorUI, BaseSensorPacketized):
 
                     self.frame_num += 1
 
-        if self.bounding_box:
-            self.bounding_box.update_sensors_got_data_count()
-        self.update_sensors_got_data_count()
+        #if self.bounding_box:
+            #self.bounding_box.update_sensors_got_data_count()
+        #self.update_sensors_got_data_count()
 
     def draw_bounding_boxes(self, q):
         overlay1 = q.copy()

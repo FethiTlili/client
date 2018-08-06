@@ -161,7 +161,7 @@ class BoundingBox(MatplotlibSensorUI, BaseSensorPacketized):
             self.y_bounds = data['y_bounds']
             self.box_rotations = data['box_rotations']
             self.view_lock.release()
-        self.update_sensors_got_data_count()
+        #self.update_sensors_got_data_count()
 
 
 def create_point(distance, degrees):

@@ -86,7 +86,7 @@ class Waypoint(MatplotlibSensorUI, BaseSensorPacketized):
             self.xy_combined = np.column_stack((x_combined, y_combined))
 
             self.view_lock.release()
-        self.update_sensors_got_data_count()
+        #self.update_sensors_got_data_count()
 
     def update_views(self, frame):
         self.view_lock.acquire()

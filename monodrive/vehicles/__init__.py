@@ -21,7 +21,7 @@ class BaseVehicle(object):
         self.simulator_configuration = simulator.simulator_configuration
         self.sensor_manager = SensorManager(vehicle_config, simulator)
         self.name = vehicle_config.id
-        self.all_sensors_ready = self.sensor_manager.all_sensors_ready
+        #self.all_sensors_ready = self.sensor_manager.all_sensors_ready
         self.sensors = self.sensor_manager.sensor_list
         self.restart_event = restart_event
         self.last_time = 0.0
@@ -47,7 +47,7 @@ class BaseVehicle(object):
     def control_monitor(self):
         while self.b_control_thread_running:
             logging.getLogger("control").debug("Vehicle waiting on Sensor Data")
-            self.all_sensors_ready.wait()
+            #self.all_sensors_ready.wait()
 
             self.log_control_time(self.previous_control_sent_time)
 
@@ -55,7 +55,7 @@ class BaseVehicle(object):
                 self.vehicle_state.update_state(self.sensors)
 
             control_data = self.drive(self.sensors, self.vehicle_state)
-            self.all_sensors_ready.clear()
+            #self.all_sensors_ready.clear()
             self.send_control_data(control_data)
 
     def send_control_data(self, control_data):

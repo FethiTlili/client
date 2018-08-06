@@ -10,9 +10,9 @@ import monodrive.constants as constants
 from matplotlib import pyplot as plt
 from matplotlib.animation import FuncAnimation
 try:
-    from tkinter import *
+    import tkinter as tk
 except ImportError:
-    from Tkinter import *
+    import Tkinter as tk
 
 import cv2
 import json
@@ -34,14 +34,18 @@ RENDER_STOPPING = -1
 class BaseSensorUI(object):
     Window_Settings_Lock = multiprocessing.Lock()
 
-    def __init__(self, **kwargs):
+    def __init__(self, name=None, q_display=None, **kwargs):
         super(BaseSensorUI, self).__init__(**kwargs)
-        self.view_lock = None
+        self.view_lock = threading.Lock()
         self.process_data_thread = None
         self.window_x_position = 0
         self.window_y_position = 0
         self.view_changing_timer = None
         self.previous_event = None
+        if name != None:
+            self.name = name
+        if q_display != None:
+            self.q_display = q_display
 
         manager = multiprocessing.Manager()
         self.render_state = manager.Value('i', RENDER_STOPPED)
@@ -49,6 +53,7 @@ class BaseSensorUI(object):
 
     def initialize_views(self):
         # override for UI creation
+        print("initialize view {0}".format(self.name))
         return
 
     def render_views(self):
@@ -58,11 +63,28 @@ class BaseSensorUI(object):
 
     def process_display_data(self):
         # override for main data processing
+        #print("process {0}".format(self.name))
         return
 
+    def rendering_main_threaded(self):
+        #self.initialize_views()
+
+        # start processing thread
+        self.process_data_thread = threading.Thread(target=self.process_data_loop, args=(self,),
+                                                    name=self.name + 'Process_Data_Thread')
+        self.process_data_thread.start()
+        # wait here until thread is running
+        #while self.render_state.value != RENDER_RUNNING:
+        #    time.sleep(1)
+
+        # mainloop
+        self.render_views()
+
+        # cleanup
+        self.process_data_thread.join()
+
     def rendering_main(self):
-        self.view_lock = threading.Lock()
-        self.initialize_views()
+        #self.view_lock = threading.Lock()
 
         # start processing thread
         self.process_data_thread = threading.Thread(target=self.process_data_loop, args=(self,),
@@ -70,7 +92,7 @@ class BaseSensorUI(object):
         self.process_data_thread.start()
         # wait here until thread is running
         while self.render_state.value != RENDER_RUNNING:
-            time.sleep(0.05)
+            time.sleep(1)
 
         # mainloop
         # wait here until thread is stopped
@@ -86,7 +108,7 @@ class BaseSensorUI(object):
                 logging.getLogger("sensor").debug("waiting for sensor render accept(%s) %s" % (count, self.name))
             time.sleep(0.1)
             count += 1'''
-        logging.getLogger("sensor").info("Exiting rendering_main %s" % self.name)
+        #logging.getLogger("sensor").info("Exiting rendering_main %s" % self.name)
     
     def stop_rendering(self):
         logging.getLogger("sensor").debug("shutting down rendering thread: {0}".format(self.name))
@@ -131,8 +153,16 @@ class BaseSensorUI(object):
             coords = window_settings[self.name]
             self.window_x_position = coords['x']
             self.window_y_position = coords['y']
+    
+    def set_window_position(self, name, window_settings):
+        if name in window_settings:
+            coords = window_settings[name]
+            self.window_x_position = coords['x']
+            self.window_y_position = coords['y']
 
-    def save_window_settings(self):
+    def save_window_settings(self, name=None):
+        if(name):
+            self.name = name
         BaseSensorUI.Window_Settings_Lock.acquire()
         current_settings = {}
         if os.path.exists('window_settings.json'):
@@ -220,7 +250,6 @@ class MatplotlibSensorUI(BaseSensorUI):
         super(MatplotlibSensorUI, self).__init__(**kwargs)
         self.animation = None
         self.main_plot = None
-        self.running_ui = False
 
     def initialize_views(self):
         self.main_plot = plt.figure(10)
@@ -230,29 +259,26 @@ class MatplotlibSensorUI(BaseSensorUI):
 
     def render_views(self):
         self.animation = FuncAnimation(self.main_plot, self.update_views, interval=100)
-        self.running_ui = True
-        plt.show(block=False)
-        while self.running_ui:
-            time.sleep(0.5)
-        if plt is not None:
-            plt.close()
-            self.main_plot = None
+        plt.show(blocking = None)
 
     def update_views(self, frame):
         return
-    
-    def destroy_ui(self):
-        logging.getLogger("sensor").info("*** destroy ui {0}".format(self.name))
-        self.running_ui = False
 
 
 class TkinterSensorUI(BaseSensorUI):
-    def __init__(self, **kwargs):
-        super(TkinterSensorUI, self).__init__(**kwargs)
+
+    def __init__(self, name=None, q_display=None, **kwargs):
+        super(TkinterSensorUI, self).__init__(name=None, q_display=None, **kwargs)
         self.master_tk = None
+        if name != None:
+            self.name = name
+        if q_display != None:
+            self.q_display = q_display
 
     def initialize_views(self):
-        self.master_tk = Tk()
+        print("initialize view {0}".format(self.name))
+        self.master_tk = tk.Tk()
+        
         geometry = "300x200+" + self.window_configuration_coordinates
         self.master_tk.geometry(geometry)
         if hasattr(self, 'name'):
@@ -260,6 +286,7 @@ class TkinterSensorUI(BaseSensorUI):
         self.master_tk.bind('<Configure>', self.window_configure_event)
 
     def render_views(self):
+        print("render views {0}".format(self.name))
         self.master_tk.mainloop()
 
     def destroy_ui(self):
@@ -271,7 +298,32 @@ class TkinterSensorUI(BaseSensorUI):
 
     def window_configure_event(self, event):
         """ Event that fires when the window changes position. """
-        event = Event()
+        event = tk.Event()
         event.x = self.master_tk.winfo_x()
         event.y = self.master_tk.winfo_y()
         super(TkinterSensorUI, self).window_configure_event(event)
+
+import wx
+class WxPythonUI(wx.App):
+    def OnInit(self):
+        frame = SensorGUIFrame(None, "Simple sensor frame")
+        self.SetTopWindow(frame)
+
+        frame.Show(True)
+        return True
+
+class SensorGUIFrame(wx.Frame):
+    
+    def __init__(self, parent, title):
+        wx.Frame.__init__(self, parent, -1, title, pos=(150,150), size=(350, 200))
+
+        panel = wx.Panel(self)
+        text = wx.StaticText(panel, -1, "Hello Sensor View")
+        text.SetFont(wx.Font(14, wx.SWISS, wx.NORMAL, wx.BOLD))
+        text.SetSize(text.GetBestSize())
+
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        sizer.Add(text, 0, wx.ALL, 10)
+
+        panel.SetSizer(sizer)
+        panel.Layout()

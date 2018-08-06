@@ -10,7 +10,7 @@ import matplotlib.patches as mpatches
 import multiprocessing
 import numpy as np
 import os.path
-
+import sys
 import os
 #import psutil , os
 import prctl
@@ -40,6 +40,7 @@ class SensorManager:
         self.sensor_process_dict = {}
         self.sensor_list = []
         self.render_processes = []
+        self.render_threads = []
         self.sensor_monitor_thread = None
         self.sensor_gametime_graph_thread = None
         #self.process_manager_list = multiprocessing.Manager().list()
@@ -71,7 +72,7 @@ class SensorManager:
         sensor_type = sensor_config['type']
         _Sensor_Class = self.vehicle_config.get_class(sensor_type)
         sensor_instance = _Sensor_Class(sensor_type, sensor_config, self.simulator_config)
-        sensor_instance.set_window_coordinates(window_settings)
+        #sensor_instance.set_window_coordinates(window_settings)
 
         self.sensor_process_dict[sensor_instance.name] = sensor_instance
         self.sensor_list.append(sensor_instance)
@@ -85,19 +86,42 @@ class SensorManager:
                 _processes.append(sensor.packetizer_process)
         return _processes
 
+    def sensor_gui_mainloop(self):
+        app = WxPythonUI(redirect = True)
+        app.MainLoop()
+
     def start_all_render_processes(self, sensor_list):
+
+        #gui_thread = threading.Thread(target=self.sensor_gui_mainloop,
+        #                                           name='Process_Data_Thread')
+        #gui_thread.start()
+
         for sensor in sensor_list:
             if not sensor.display_process:
                 continue
-            render_process_name = 'monodrive ' + sensor.name + '_Render'
+            render_process_name = 'mono' + sensor.name + '_Render'
+            if "IMU" in sensor.name:
+                #sensor.rendering_main()
+                #sensor.initialize_views()
+                #sensor.start_data_processing()
+                #render_thread = threading.Thread(target=sensor.rendering_main_threaded, 
+                #                                name=sensor.name + 'Process_Data_Thread')
+                #render_thread.daemon = True
+                #render_thread.start()
+                continue
+            
             render_process = Process(target=sensor.rendering_main,
-                                     name=render_process_name)
+                                        name=render_process_name)
             render_process.daemon=True
             render_process.start()
             self.render_processes.append(render_process)
+                                       
+                
 
     def start(self):
         [p.start() for p in self.get_process_list()]
+
+
 
         for s in self.sensor_list:
             res = s.send_start_stream_command(self.simulator)
@@ -105,19 +129,22 @@ class SensorManager:
                 logging.getLogger("sensor").error(
                     "Failed start stream command for sensor %s %s" % (s.name, res.error_message))
             else:
-                logging.getLogger("sensor").info("Sensor ready %s" % s.name)
-
-        self.start_all_render_processes(self.sensor_list)
+                logging.getLogger("sensor").info("Sensor Ready %s" % s.name)
 
         for s in self.sensor_list:
-            s.socket_ready_event.wait()
+            socket_ready = s.socket_ready_event.wait(timeout = 5)
+        #self.start_all_render_processes(self.sensor_list)
 
-        self.sensor_monitor_thread = threading.Thread(target=self.monitor_sensors, name='SensorManager.monitor_sensors')
-        self.sensor_monitor_thread.start()
+        if socket_ready:
+            #self.sensor_monitor_thread = threading.Thread(target=self.monitor_sensors, name='SensorManager.monitor_sensors')
+            #self.sensor_monitor_thread.start()
 
-        logging.getLogger("simulator").info("Sending intial control command")
-        # Kicks off simulator for stepping from client
-        self.simulator.request(messaging.EgoControlCommand(0.0, 0.0))
+            logging.getLogger("simulator").info("Sending intial control command")
+            # Kicks off simulator for stepping from client
+            self.simulator.request(messaging.EgoControlCommand(0.0, 0.0))
+        else:
+            #raise RuntimeError("%s socket is not open", self.name)
+            pass
 
     def stop(self, simulator):
         # stop monitoring sensors
@@ -150,10 +177,14 @@ class SensorManager:
             if last_game_time is None:
                 for s in self.sensor_list:
                     logging.getLogger("sensor").debug('Waiting on first frame for %s' % s.name)
-                    s.data_ready_event.wait()
+                    received_data = s.data_ready_event.wait(timeout = 5)
                     s.data_ready_event.clear()
                     last_game_time = s.last_game_time.value
-                    logging.getLogger("sensor").debug('Received first frame for %s' % s.name)
+                    if not received_data:
+                        logging.getLogger("sensor").debug('Error for %s' % s.name)
+                        #raise RuntimeError('First Frame not received for %s' % s.name)
+                    else:
+                        logging.getLogger("sensor").debug('Did not first frame for %s' % s.name)
             else:
                 next_expected_sample_time = min(s.next_expected_sample_time for s in self.sensor_list)
                 tolerance = 10
@@ -164,14 +195,15 @@ class SensorManager:
 
                 for s in sensors_expecting_sample:
                     logging.getLogger("sensor").debug('Waiting on frame for %s' % s.name)
-                    received_data = s.data_ready_event.wait(.5)
+                    received_data = s.data_ready_event.wait(timeout = .5)
 
                     if not received_data:
-                        #logging.getLogger("sensor").debug('%s no data' % s.name)
+                        logging.getLogger("sensor").debug('%s no data' % s.name)
                         counter += 1
                         if counter > 20:
                             logging.getLogger("sensor").info('%s no data' % s.name) 
                             counter = 0
+                            #raise RuntimeError('no data received for %s' % s.name)
 
                     s.data_ready_event.clear()
 
@@ -290,6 +322,7 @@ class BaseSensor(multiprocessing.Process):
         return self.packet_size
 
     def get_message(self):
+        print("get message for {0}".format(self.name))
         data = self.q_vehicle.peek()
         for key in data:
             setattr(self, key, data[key])
@@ -305,15 +338,15 @@ class BaseSensor(multiprocessing.Process):
                 data = self.q_vehicle.peek(True, 1.0)
                 break
             except Exception as e:
-                # logging.getLogger("sensor").debug("get_display_message timeout %s %s %s" % (self.thread_state.value,
-                #   self.name, e))
+                logging.getLogger("sensor").debug("get_display_message timeout %s %s %s" % (self.thread_state.value,
+                   self.name, e))
                 pass
 
         return data
 
     def dropped_frame(self):
         logging.getLogger("sensor").warning("Dropped Frame for: %s" % self.name)
-        self.update_sensors_got_data_count()
+        #self.update_sensors_got_data_count()
 
     def stop(self):
         logging.getLogger("sensor").info('*** stop %s' % self.name)
@@ -401,41 +434,44 @@ class BaseSensor(multiprocessing.Process):
         self.destroy_socket()
         logging.getLogger("sensor").info("_monitor_status %s done" % self.name)
 
+    def connect_socket(self):
+        tries = 0
+        while tries < 5:
+            if self.socket_udp:
+                logging.getLogger("network").debug('Setting udp listening port on %s for %s' % (self.listen_port, self.name))
+                self.sock.bind(('', self.listen_port))
+            else:
+                logging.getLogger("network").debug('connecting tcp sensor on %s %s for %s' % (self.server_ip, self.listen_port, self.name))
+                try:
+                    self.sock.connect((self.server_ip, self.listen_port))
+                except:
+                    if tries > 5:
+                        logging.getLogger("network").error('Cound not connect to %s for %s' % (self.listen_port, self.name))
+                        break
+                    tries = tries + 1
+                    time.sleep(0.5)
+                finally:
+                    self.sock.settimeout(None)
+                    self.socket_ready_event.set()
+                    logging.getLogger("network").debug('connected tcp sensor on %s %s for %s' % (self.server_ip, self.listen_port, self.name))
+                    break
+
     def run(self):
+        print("starting process for {0}".format(self.name))
         self.thread_state.value = constants.THREAD_STATE_RUNNING
         self.initialize_socket()
-        threading.Thread(target=self._monitor_status, name=self.name+'_monitor_status').start()
+        #threading.Thread(target=self._monitor_status, name=self.name+'_monitor_status').start()
 
-        tries = 0
+        
         #self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 0)
         prctl.set_proctitle("mono{0}".format(self.name))
+
+        #main sensor process loop
         while self.is_running():
-            
+
             if self.start_time is None:
-                if self.socket_udp:
-                    logging.getLogger("network").debug(
-                        'Setting udp listening port on %s for %s' % (self.listen_port, self.name))
-                    self.sock.bind(('', self.listen_port))
-                else:
-                    logging.getLogger("network").debug(
-                        'connecting tcp sensor on %s %s for %s' % (self.server_ip, self.listen_port, self.name))
-                    try:
-                        self.sock.connect((self.server_ip, self.listen_port))
-                    except:
-                        if tries > 5:
-                            logging.getLogger("network").error(
-                                'Cound not connect to %s for %s' % (self.listen_port, self.name))
-                            break
-
-                        tries = tries + 1
-                        time.sleep(0.1)
-                        continue
-
-                self.sock.settimeout(None)
+                self.connect_socket()
                 self.start_time = time.clock()
-                self.socket_ready_event.set()
-                logging.getLogger("network").debug(
-                    'connected tcp sensor on %s %s for %s' % (self.server_ip, self.listen_port, self.name))
             else:
                 time_stamp = None
                 game_time = None
@@ -445,23 +481,21 @@ class BaseSensor(multiprocessing.Process):
                 except Exception as e:
                     logging.getLogger("network").warning(
                         'Packet exception: %s for %s' % (str(e), self.name))
-                    #print("packet exception: {0}".format(e))
                     pass
 
-                # print(self.name, ':', len(packet))
                 if packet is not None:
-                    self.number_of_packets += 1
-                    self.receiving_data = True
                     self.digest_packet(packet, time_stamp, game_time)
                     if time_stamp is not None:
                         self.log_timestamp(time_stamp, game_time)
-                else:
-                    self.receiving_data = False
-                    # print("waiting for data...", self.name)
+            time.sleep(.2)
 
         self.thread_state.value = constants.THREAD_STATE_STOPPED
         logging.getLogger("sensor").debug(
                         'Done running %s for %s' % (self.listen_port, self.name))
+
+    def display(self, frame):
+        #override is super class
+        return
 
     # Hook method for digest each packet, when not packetized forward on to digest_frame
     # since each packet is an entire frame. BaseSensorPacketized overrides thisdata_ready_event
@@ -471,18 +505,25 @@ class BaseSensor(multiprocessing.Process):
     # Override to manipulate data, see Waypoint and BoundingBox for example
     # Radar and Camera don't need to manipulate the data
     def digest_frame(self, frame, time_stamp, game_time):
+
         self.frame_count += 1
         self.last_game_time.value = game_time
         self.log_control_time(self.name, self.last_control_real_time.value)
         if hasattr(self, 'parse_frame'):
             frame = self.parse_frame(frame, time_stamp, game_time)
+        if hasattr(self, 'display'):
+            self.display(frame)
+        #self.update_sensors_got_data_count()
         self.q_display.put(frame)
         self.q_vehicle.put(frame)
+        print("date rx {0}".format(self.name))
         if not self.display_process or not self.synchronized_display:
             self.data_ready_event.set()
+        
+        return frame
 
-    def start_logging(self):
-        self.logging_thread = threading.Thread(target=self._display_logging, name=self.name+'_display_logging')
+    #def start_logging(self):
+        #self.logging_thread = threading.Thread(target=self._display_logging, name=self.name+'_display_logging')
         # self.logging_thread.start()
 
     def send_start_stream_command(self, simulator):
@@ -572,8 +613,8 @@ class BaseSensor(multiprocessing.Process):
 
         self.sensors_got_data_count.value += 1
 
-        # print("update_sensors_got_data_count %s %s %s" % (self.sensors_got_data_count.value,
-        #                                                  self.sensors_depending_on_data, self.name))
+        print("update_sensors_got_data_count %s %s %s" % (self.sensors_got_data_count.value,
+                                                          self.sensors_depending_on_data, self.name))
 
         if self.sensors_got_data_count.value == self.sensors_depending_on_data:
             self.sensors_got_data_count.value = 0
@@ -648,3 +689,4 @@ from .rpm import RPM
 from .waypoint import Waypoint
 from .bounding_box import BoundingBox
 from .rpm import RPM
+from .gui import WxPythonUI

@@ -1,8 +1,8 @@
 {
   "id": "simulator_test",
-  "server_ip": "127.0.0.1",
+  "server_ip": "192.168.1.4",
   "server_port": 8998,
-  "client_ip": "127.0.0.1",
+  "client_ip": "102.168.1.14",
   "phys_materials": {
     "Aluminum": {
       "specular_exponent": 15.0,
@@ -88,7 +88,7 @@
   },
   "logger_settings": {
     "sensor": "info",
-    "network": "info",
+    "network": "debug",
     "control": "info",
     "scenario": "error",
     "simulator": "info",

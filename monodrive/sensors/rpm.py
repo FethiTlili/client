@@ -56,4 +56,4 @@ class RPM(TkinterSensorUI, BaseSensor):
             self.string_wheel_number.set('Wheel Number: {0}'.format(data['wheel_number']))
             self.string_wheel_rpm.set('RPM: {0}'.format(data['wheel_rpm']))
             self.string_timestamp.set('Time Stamp: {0}'.format(data['time_stamp']))
-        self.update_sensors_got_data_count()
+        #self.update_sensors_got_data_count()
