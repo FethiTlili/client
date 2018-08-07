@@ -43,5 +43,14 @@ class Gui:
             render_process.start()
             self.render_processes.append(render_process)
 
+        if os.path.exists('window_settings.json'):
+            try:
+                with open('window_settings.json') as data_file:
+                    window_settings = json.load(data_file)
+                for widget in self.widgets:
+                    widget.set_window_coordinates(window_settings)
+            except:
+                pass
+
     def stop(self):
         [p.terminate() for p in self.render_processes]

@@ -4,11 +4,7 @@ __license__ = "MIT"
 __version__ = "1.0"
 
 import datetime
-import json
 import multiprocessing
-import os.path
-
-import os
 
 try:
     import queue
@@ -16,6 +12,8 @@ except ImportError:
     import Queue as queue
 
 import logging
+from rx import Observable
+from rx.subjects import BehaviorSubject
 import socket
 import struct
 import threading
@@ -40,18 +38,10 @@ class SensorManager:
         self.configure()
 
     def configure(self):
-        window_settings = {}
-        if os.path.exists('window_settings.json'):
-            try:
-                with open('window_settings.json') as data_file:
-                    window_settings = json.load(data_file)
-            except:
-                pass
-
         for sensor_config in self.vehicle_config.sensors:
             if not sensor_config['sensor_process']:
                 continue
-            self.add(sensor_config, window_settings)
+            self.add(sensor_config)
 
         if self.vehicle_config.bounding_data_on_radar_graph:
             self.attach_bounding_radar()
@@ -59,11 +49,10 @@ class SensorManager:
         if self.vehicle_config.bounding_data_on_camera:
             self.attach_bounding_camera()
 
-    def add(self, sensor_config, window_settings):
+    def add(self, sensor_config):
         sensor_type = sensor_config['type']
         _Sensor_Class = self.vehicle_config.get_class(sensor_type)
         sensor_instance = _Sensor_Class(sensor_type, sensor_config, self.simulator_config)
-#        sensor_instance.set_window_coordinates(window_settings)
 
         self.sensor_process_dict[sensor_instance.name] = sensor_instance
         self.sensor_list.append(sensor_instance)
@@ -156,6 +145,7 @@ class SensorManager:
 
                     s.data_ready_event.clear()
 
+            logging.getLogger("sensor").debug('< ---------------- >')
             self.all_sensors_ready.set()
 
     def attach_bounding_radar(self):
@@ -237,6 +227,28 @@ class BaseSensor(multiprocessing.Process):
 
         self.ready_event_lock = manager.Lock()
         self.sensors_got_data_count = manager.Value('i', 0)
+        self.emitter = None
+
+    def get_data_emitter(self):
+        if self.emitter is None:
+            self.emitter_subject = BehaviorSubject(None)
+            self.emitter = Observable.just(self.emitter_subject).publish()
+            thread = threading.Thread(target=self.poll)
+            thread.start()
+        return self.emitter
+
+    def poll(self):
+        print("getting data for {0}".format(self.name))
+        while self.running:
+            try:
+                data = self.q_data.get(timeout=.25)
+            except queue.Empty:
+                continue
+
+            print("got data for {0}".format(self.name))
+            self.emitter_subject.on_next(data)
+            self.update_sensors_got_data_count()
+            print("getting data for {0}".format(self.name))
 
     @classmethod
     def init_data_queue(cls):

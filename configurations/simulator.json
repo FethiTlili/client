@@ -92,12 +92,12 @@
       "point_delta": 100.0
     },
     "logger": {
-      "sensor": "info",
-      "network": "info",
+      "sensor": "debug",
+      "network": "debug",
       "control": "debug",
       "scenario": "error",
-      "simulator": "info",
-      "vehicle": "info"
+      "simulator": "debug",
+      "vehicle": "debug"
     }
   }
 }

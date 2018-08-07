@@ -37,17 +37,17 @@ class SensorWidget(object):
     def __init__(self, sensor):
         self.sensor = sensor
         self.name = sensor.name if sensor else ''
-        self.last_frame = None
+        #self.last_frame = None
 
-    def render(self):
-        data = self.sensor.get_message()
-        if data is self.last_frame:
-            time.sleep(.1)
-            return
+    #def render(self):
+    #    data = self.sensor.get_message()
+    #    if data is self.last_frame:
+    #        time.sleep(.1)
+    #        return
 
  #       print("updating {0}".format(self.name))
-        self.update_widget(data)
-        self.last_frame = data
+    #    self.update_widget(data)
+    #    self.last_frame = data
 #        self.sensor.update_sensors_got_data_count()
 
     def update_widget(self, data):
@@ -60,36 +60,42 @@ class BaseSensorUI(SensorWidget):
     def __init__(self, sensor, **kwargs):
         super(BaseSensorUI, self).__init__(sensor)
         self.view_lock = None
-        self.process_data_thread = None
+#        self.process_data_thread = None
         self.window_x_position = 0
         self.window_y_position = 0
         self.view_changing_timer = None
         self.previous_event = None
         self.b_stop_thread = False
+        self.data_emitter_subscription = None
 
     def initialize_views(self):
         # override for UI creation
         return
 
     def render_views(self):
-        self.process_data_thread.join()
+#        self.process_data_thread.join()
         return
 
     def rendering_main(self):
         print("starting render process for {0}".format(self))
         self.view_lock = threading.Lock()
         self.initialize_views()
-        thread_name = self.name + 'Process_Data_Thread'
-        self.process_data_thread = threading.Thread(target=self.process_data_loop, args=(self,), name=thread_name)
-        self.process_data_thread.start()
+        if self.sensor is not None:
+            self.data_emitter_subscription = self.sensor.get_data_emitter()\
+                .subscribe(lambda data: self.update_widget(data))
+#        thread_name = self.name + 'Process_Data_Thread'
+#        self.process_data_thread = threading.Thread(target=self.process_data_loop, args=(self,), name=thread_name)
+#        self.process_data_thread.start()
         self.render_views()
 
     def stop_rendering(self):
         logging.getLogger("sensor").info("shutting down rendering thread: {0}".format(self.name))
-        if self.process_data_thread is not None:
-            self.process_data_thread.stop()
-        else:
-            logging.getLogger("sensor").info("no thread: {0}".format(self.name))
+        if self.data_emitter_subscription is not None:
+            self.data_emitter_subscription.unsubscribe()
+        #if self.process_data_thread is not None:
+        #    self.process_data_thread.stop()
+        #else:
+        #    logging.getLogger("sensor").info("no thread: {0}".format(self.name))
 
     # @staticmethod
     # def stop(self):
@@ -158,11 +164,11 @@ class BaseSensorUI(SensorWidget):
         return "+" + str(self.window_x_position) + '+' + str(self.window_y_position)
 
     # Render thread entry point
-    @staticmethod
-    def process_data_loop(widget):
+    #@staticmethod
+    #def process_data_loop(widget):
         # prctl.set_proctitle("monodrive rending {0}".format(sensor))
-        while widget.sensor.running:
-            widget.render()
+    #    while widget.sensor.running:
+    #        widget.render()
 
 
 class MatplotlibSensorUI(BaseSensorUI):
@@ -275,6 +281,7 @@ class BoundingBoxWidget(MatplotlibSensorUI):
         return None
 
     def update_widget(self, data):
+        print("----> {0}: data rcv".format(self.name))
         self.view_lock.acquire()
         self.x_points = data['x_points']
         self.y_points = data['y_points']
@@ -310,6 +317,7 @@ class CameraWidget(TkinterSensorUI):
         self.view_lock.release()
 
     def update_widget(self, data):
+        print("----> {0}: data rcv".format(self.name))
         bb_pos = None
         bb_in_fov = False
         if self.bounding_box is not None:
@@ -473,6 +481,7 @@ class GPSWidget(TkinterSensorUI):
         self.view_lock.release()
 
     def update_widget(self, data):
+        print("----> {0}: data rcv".format(self.name))
         self.string_lat.set('LAT: {0}'.format(data['lat']))
         self.string_lng.set('LNG: {0}'.format(data['lng']))
         self.string_time.set('TIMESTAMP: {0}'.format(data['time_stamp']))
