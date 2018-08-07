@@ -1,5 +1,4 @@
 from __future__ import print_function
-from matplotlib import pyplot as plt
 
 import matplotlib
 matplotlib.use('TkAgg')
@@ -12,14 +11,11 @@ import pyfftw
 #except:
 #    scipyio = None
 
-import math
-import time
-
 try:
     import matlab.engine
 except ImportError:
     eng = None
-from monodrive.sensors import spectral_high_resolution as shr
+from monodrive.signal_processing import spectral_high_resolution as shr
 
 
 class BaseRadarMethod:
@@ -58,7 +54,6 @@ class BaseRadarMethod:
         self.SizeMaxOfTable = 27
         self.Max_Number_of_obstacles = 256
         self.obstacles = np.array(self.Max_Number_of_obstacles * [6 * [0]])
-
 
         fc = 77.0e9
         lam = self.cc / fc
@@ -106,14 +101,8 @@ class BaseRadarMethod:
         delta = f[1] - f[0]
         return [f[0] - delta / 2, f[-1] + delta / 2]
 
-    def process_radar_data_cube(self, xr, hannMat):
+    def process_radar_data_cube(self, **kwargs):
         raise Exception('Must implement process_radar_data_cube')
-
-    def setup_radar_plots(self, subplot):
-        raise Exception('Must implement setup_radar_plots')
-
-    def set_data(self, handle):
-        raise Exception('Must implement set_data')
 
 
 class BaseRadarMethodDoppler(BaseRadarMethod):
@@ -160,8 +149,10 @@ class BaseRadarMethodAoA(BaseRadarMethod):
         hanning_aoa = np.transpose(np.tile(han_aoa, (self.N, 1)))
         self.hanning_aoa = hanning_matrix_ts[0:self.n_rx_elements] * hanning_aoa
 
+
 class RadarMethodDetectionRootMusicAndESPRIT(BaseRadarMethod):
-    def process_radar_data_cube(self, xr, hannMat_aoa,hannMat):
+
+    def process_radar_data_cube(self, xr, hannMat_aoa, hannMat):
     #--------- Estimate Range then Velocity and AoA (AoA can be estimated either from range or from velocity)
         results = RadarMethodRootMusicAndESPRIT.compute_my_range_and_indx(xr, self.N, self.NN, hannMat, self.cte_range)
         self.My_Range_indx = results[0]
@@ -177,58 +168,17 @@ class RadarMethodDetectionRootMusicAndESPRIT(BaseRadarMethod):
             [self.obstaclesR, self.obstaclesV, self.obstaclesA, self.obstaclesRCS, self.obstaclesPL] = RadarMethodRootMusicAndESPRIT.process_radar_data_cube_aoa(xr, self.N, self.NN, hannMat_aoa, self.My_Range_indx, self.My_Range, self.My_velocity, self.Estimated_RCS, self.PowerLevel, self.n_rx_elements,self.nSweep, True)
             self.My_velocity_kmh = 3.6*self.My_velocity
 
-
-    def setup_radar_plots(self, subplot1, subplot2):
-        self.collabel = ("Obstacle", "Range", "Speed", "AoA", "RCS", "Power\n level")
-        subplot1.grid(visible=True)
-        AOA_handle, = subplot1.plot(self.obstaclesA, self.obstaclesR, linestyle='None', marker='s', markerfacecolor = 'r', markeredgecolor = 'r')
-        if len(self.obstaclesR)> 20:  #to adjust table vertical position in the figure
-            self.SizeMaxOfTable = 27
-        else:
-            self.SizeMaxOfTable = 20
-        obstacles_handle = subplot2.table(cellText=self.obstacles[0:self.SizeMaxOfTable], colLabels=self.collabel, loc='center')
-        obstacles_handle.auto_set_font_size(False)
-        obstacles_handle.set_fontsize(5.5)
-        for i in range(0,6):
-            for j in range(len(self.obstaclesR)+1,self.SizeMaxOfTable+1):
-                    obstacles_handle._cells[(j,i)]._text.set_text('')
-                    obstacles_handle._cells[(j,i)].set_linewidth(0)
-
-
-        self.old_size = len(self.obstaclesR)
-
-        return AOA_handle, obstacles_handle
-
-    def set_data(self, handle1, handle2):
-
-        if self.has_data():
-            self.obstacles[0:len(self.obstaclesR), 0] = range(0, len(self.obstaclesR))
-            self.obstacles[0:len(self.obstaclesR), 1] = self.obstaclesR
-            self.obstacles[0:len(self.obstaclesV), 2] = self.obstaclesV
-            self.obstacles[0:len(self.obstaclesA), 3] = self.obstaclesA
-            self.obstacles[0:len(self.obstaclesRCS), 4] = self.obstaclesRCS
-            self.obstacles[0:len(self.obstaclesPL), 5] = self.obstaclesPL
-
-            handle1.set_xdata(self.obstaclesA)
-            handle1.set_ydata(self.obstaclesR)
-
-        for i in range(0, 6):
-            for j in range(1, self.old_size + 1): #to erase previous display
-                try:
-                    handle2._cells[(j,i)]._text.set_text('')
-                    handle2._cells[(j,i)].set_linewidth(0)
-                except:
-                    pass
-
-        for i in range(0,6):
-            for j in range(1, len(self.obstaclesR) + 1): #to refresh with new display
-                try:
-                    handle2._cells[(j, i)]._text.set_text(self.obstacles[j - 1, i])
-                    handle2._cells[(j, i)].set_linewidth(1)
-                except:
-                    pass
-
-        self.old_size = len(self.obstaclesR)
+        return {
+            'NN': self.NN,
+            'obstaclesR': self.obstaclesR,
+            'obstaclesV': self.obstaclesV,
+            'obstaclesA': self.obstaclesA,
+            'obstaclesRCS': self.obstaclesRCS,
+            'obstaclesPL': self.obstaclesPL,
+            'rngdop': self.rngdop,
+            'range_max': self.range_max,
+            'range_aoa': self.range_aoa
+        }
 
 
 class RadarMethodDopplerFFT(BaseRadarMethodDoppler):
@@ -241,17 +191,12 @@ class RadarMethodDopplerFFT(BaseRadarMethodDoppler):
         np.where(abs(rngdop) < 0.5, 0, rngdop)
         self.rngdop = deepcopy(np.flipud(20.0 * np.log10(rngdop[0:round(rngdop.shape[0]/6), :])))
 
-    def setup_radar_plots(self, subplot):
-        data = np.flipud(20 * np.log10(self.rngdop))
-        self.vvv = self.extents(np.linspace(-self.v_max, self.v_max, self.nSweep))
-        self.rrr = self.extents(np.linspace(self.range_max, 0, self.NN))
-
-        doppler_handle = subplot.imshow(
-            data, aspect='auto', interpolation='none', extent=self.vvv + self.rrr, origin='lower')
-        return doppler_handle
-
-    def set_data(self, handle):
-        handle.set_data(self.rngdop)
+        return {
+            'NN': self.NN,
+            'rngdop': self.rngdop,
+            'range_max': self.range_max,
+            'range_aoa': self.range_aoa
+        }
 
 
 class RadarMethodAoAFFT(BaseRadarMethodAoA):
@@ -264,17 +209,13 @@ class RadarMethodAoAFFT(BaseRadarMethodAoA):
         np.where(abs(x_aoa) < 0.5, 0, x_aoa)
         self.range_aoa = np.flipud(20.0 * np.log10(x_aoa[0:round(x_aoa.shape[0]/6), :]))
 
-    def setup_radar_plots(self, subplot):
-        data = np.flipud(20 * np.log10(self.range_aoa))
-        self.vvv = self.extents(np.linspace(-self.v_max, self.v_max, self.nSweep))
-        self.rrr = self.extents(np.linspace(self.range_max, 0, self.NN))
+        return {
+            'NN': self.NN,
+            'rngdop': self.rngdop,
+            'range_max': self.range_max,
+            'range_aoa': self.range_aoa
+        }
 
-        AOA_handle = subplot.imshow(
-            data, aspect='auto', interpolation='none', extent=self.vvv + self.rrr, origin='lower')
-        return AOA_handle
-
-    def set_data(self, handle):
-        handle.set_data(self.range_aoa)
 
 class RadarMethodRootMusicAndESPRIT:
 

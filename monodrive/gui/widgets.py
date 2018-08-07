@@ -594,6 +594,108 @@ class MultiCameraWidget(CameraWidget):
         return True
 
 
+class RadarWidget(MatplotlibSensorUI):
+    def __init__(self, sensor):
+        super(RadarWidget, self).__init__(sensor)
+        self.bounding_angles = []
+        self.bounding_distances = []
+        self.bounding_velocities = []
+        self.bounding_game_time = None
+        self.bounding_time_stamp = None
+
+    def process_bound_data(self, data):
+        self.bounding_distances = data['radar_distances']
+        self.bounding_angles = data['radar_angles']
+        self.bounding_velocities = data['radar_velocities']
+        self.bounding_game_time = data['game_time']
+        self.bounding_time_stamp = data['time_stamp']
+
+    def update_views(self, frame):
+        self.view_lock.acquire()
+
+        self.set_radar_method_data(self.AOA_handle, self.obstacles_handle)
+
+        if self.sensor.bounding_box is not None:
+            self.AOA_bounding_handle.set_xdata(self.bounding_angles)
+            self.AOA_bounding_handle.set_ydata(self.bounding_distances)
+
+        self.view_lock.release()
+        return self.AOA_subplot, self.AOA_handle, self.obstacles_handle, self.AOA_bounding_handle
+
+    def initialize_views(self):
+        self.view_lock.acquire()
+        super(RadarWidget, self).initialize_views()
+        self.main_plot.suptitle('FMCW 77Ghz Radar')
+        self.main_plot.set_size_inches(12.75,8.25)
+        self.AOA_subplot = self.main_plot.add_subplot(121)
+        self.obstacles_table_subplot = self.main_plot.add_subplot(122)
+        self.obstacles_table_subplot.set_title('Target Table')
+        self.obstacles_table_subplot.axis('tight')
+        self.obstacles_table_subplot.axis('off')
+        # self.doppler_handle = self.radar_plot.setup_subplots(self.doppler_subplot)
+        self.AOA_handle, self.obstacles_handle = self.setup_radar_plots(self.AOA_subplot,
+                                                                        self.obstacles_table_subplot)
+
+        if self.sensor.bounding_box is not None:
+            self.AOA_bounding_handle, = self.AOA_subplot.plot([], [],  # (self.bounding_angles, self.bounding_distances,
+                                                              marker='s', linestyle='None', markerfacecolor='none',
+                                                              markeredgecolor='b')
+
+        self.AOA_subplot.set_title('AOA Range')
+        self.AOA_subplot.set_ylabel('Range (m)')
+        self.AOA_subplot.set_xlabel('Angle (degrees) ')
+        self.AOA_subplot.set_xlim(-20, 20)
+        self.AOA_subplot.set_ylim(0, 150)
+
+        # self.radar_plot.tight_layout(pad=0.4, w_pad=0.5, h_pad=1.0)
+        self.view_lock.release()
+
+    def show_radar_plots(self):
+        if self.radar_method.has_data():
+
+            self.radar_method.set_data(self.AOA_handle, self.obstacles_handle)
+
+            game_time_string = "GameTime: " + str(self.game_time)
+            if not hasattr(self, 'game_time_text_handle'):
+                self.game_time_text_handle = self.AOA_subplot.text(0, 0, game_time_string, fontsize=8)
+            else:
+                self.game_time_text_handle.set_text(game_time_string)
+
+            if self.sensor.bounding_box is not None:
+                self.AOA_bounding_handle.set_xdata(self.bounding_angles)
+                self.AOA_bounding_handle.set_ydata(self.bounding_distances)
+
+        self.AOA_subplot.figure.canvas.flush_events()
+
+    def update_widget(self, data):
+        if self.sensor.bounding_box is not None:
+            bounding_data = self.sensor.bounding_box.q_vehicle.peek()
+            self.process_bound_data(bounding_data)
+
+        self.game_time = data['game_time']
+        packetized_data = data['data']
+
+        self.view_lock.acquire()
+        if len(packetized_data) > 0:
+            self.sensor.process_radar_data_cube(packetized_data)
+            #print('Radar Processing Time: {0}'.format(time.time() - start_time))
+            if self.last_data_frame_processed:
+                self.last_data_frame_processed = False
+                #print('Radar Processing: {0}'.format(time.time() - start_time))
+                # if self.radar_plot is None and self.radar_method is not None:
+                #    self.setup_radar_plots()
+                # if self.radar_signals is None and self.radar_method is not None:
+                    # self.setup_radar_signals()
+                # if self.radar_method is not None:
+                #    self.show_radar_plots()
+                    # self.show_radar_signals()
+
+        self.view_lock.release()
+        if self.sensor.bounding_box:
+            self.sensor.bounding_box.update_sensors_got_data_count()
+        self.sensor.update_sensors_got_data_count()
+
+
 class RPMWidget(TkinterSensorUI):
     def __init__(self, sensor):
         super(RPMWidget, self).__init__(sensor)

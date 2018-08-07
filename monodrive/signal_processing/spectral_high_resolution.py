@@ -7,8 +7,6 @@ import numpy as np
 from numpy import linalg as lg
 import pyfftw
 from scipy import linalg
-import time
-import numpy.fft as fftpack
 
 
 def compute_covariance(X):
@@ -51,6 +49,7 @@ def modified_correlation(x, M):
 
     R = (R+R2) / (2.*N)
     return R
+
 
 def root_MUSIC_One(x, L, M, Fe):
     N = x.shape[0]
@@ -196,6 +195,7 @@ def ML_AoA_Estimation(project):
             Theta_Est = Theta[index]
 
         return Theta_Est
+
 
 def NumberOfTargetsAIC(x, M):
     N = x.shape[0]
