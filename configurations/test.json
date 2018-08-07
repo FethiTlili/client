@@ -237,7 +237,7 @@
           "yaw":0.0,
           "roll":0.0
         },
-        "fps": 1.0
+        "fps": 2.0
       },
       {
         "type": "GPS",
@@ -264,8 +264,8 @@
         "id": "2",
         "packet_size": 64000,
         "listen_port": 8085,
-        "display_process": true,
-        "sensor_process": true,
+        "display_process": false,
+        "sensor_process": false,
         "synchronized_display": true,
         "location": {
           "x": 250.0,
@@ -319,6 +319,5 @@
       },
       "fps": 2.0
     }
-  
     ]
   }

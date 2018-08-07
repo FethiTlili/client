@@ -142,6 +142,8 @@ class SensorManager:
                 for sensor in self.sensor_list:
                     if sensor.is_expecting_frame_at_game_time(next_expected_sample_time, tolerance):
                         sensors_expecting_sample.append(sensor)
+                    else:
+                        logging.getLogger("sensor").debug('skipping %s' % sensor.name)
 
                 for s in sensors_expecting_sample:
                     logging.getLogger("sensor").debug('Waiting on frame for %s' % s.name)
@@ -396,6 +398,8 @@ class BaseSensor(multiprocessing.Process):
         self.log_control_time(self.name, self.last_control_real_time.value)
         if hasattr(self, 'parse_frame'):
             frame = self.parse_frame(frame, time_stamp, game_time)
+
+        #logging.getLogger("sensor").debug("received frame for %s" % self.name)
         self.q_data.put(frame)
         if not self.display_process or not self.synchronized_display:
             self.data_ready_event.set()

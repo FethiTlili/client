@@ -50,7 +50,7 @@ class Camera(BaseSensorPacketized):
         return data_dict
 
     def get_q_image(self):
-        image_frame = self.get_message()
+        image_frame = self.q_data.get()
         image_buffer = image_frame['image']
         if len(image_buffer) == self.height * self.width * 4:
             image = np.array(bytearray(image_buffer), dtype=np.uint8).reshape(self.height, self.width, 4)

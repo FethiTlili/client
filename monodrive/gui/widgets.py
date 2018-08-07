@@ -45,10 +45,10 @@ class SensorWidget(object):
             time.sleep(.1)
             return
 
- #       print("updating {0}".format(self.name))
         self.update_widget(data)
         self.last_frame = data
-#        self.sensor.update_sensors_got_data_count()
+        if self.sensor:
+            self.sensor.update_sensors_got_data_count()
 
     def update_widget(self, data):
         raise NotImplemented
@@ -76,7 +76,7 @@ class BaseSensorUI(SensorWidget):
         return
 
     def rendering_main(self):
-        print("starting render process for {0}".format(self))
+        #print("starting render process for {0}".format(self))
         self.view_lock = threading.Lock()
         self.initialize_views()
         thread_name = self.name + 'Process_Data_Thread'
@@ -90,14 +90,6 @@ class BaseSensorUI(SensorWidget):
             self.process_data_thread.stop()
         else:
             logging.getLogger("sensor").info("no thread: {0}".format(self.name))
-
-    # @staticmethod
-    # def stop(self):
-    #    logging.getLogger("sensor").info("shutting down rendering thread: {0}".format(self.name))
-    #    if self.process_data_thread != None:
-    #        self.process_data_thread.stop()
-    #    else:
-    #        logging.getLogger("sensor").info("no thread: {0}".format(self.name))
 
     def set_window_coordinates(self, window_settings):
         if self.name in window_settings:

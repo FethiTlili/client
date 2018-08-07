@@ -40,11 +40,11 @@ if __name__ == "__main__":
         else:
             ego_vehicle = simulator.start_vehicle(vehicle_configuration, SimpleVehicle)
 
-        logging.getLogger("simulator").info('Starting vehicle')
-        ego_vehicle.start()
-
         gui = Gui(ego_vehicle)
         gui.start()
+
+        logging.getLogger("simulator").info('Starting vehicle')
+        ego_vehicle.start()
 
         # Waits for the restart event to be set in the control process
         simulator.restart_event.wait()
