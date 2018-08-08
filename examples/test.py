@@ -55,7 +55,6 @@ if __name__ == "__main__":
         # Waits for the restart event to be set in the control process
         simulator.restart_event.wait()
 
-        #gui_multi_proc.stop()
         gui.stop()
 
         # Terminates vehicle and sensor processes

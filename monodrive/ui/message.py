@@ -70,3 +70,7 @@ class Camera_Message(object):
     
     def test_message(self):
         self.np_image = None
+
+class MapData(object):
+    def __init__(self, d):
+        self.__dict__ = d
