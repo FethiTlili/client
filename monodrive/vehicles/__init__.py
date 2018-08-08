@@ -14,7 +14,11 @@ from monodrive.networking import messaging
 from monodrive.sensors import GPS, Waypoint
 from monodrive.transform import Rotation, Transform, Translation
 
-import tf
+try:
+    import tf
+except ImportError:
+    pass
+
 import numpy as np
 
 
