@@ -54,27 +54,28 @@ class Radar(BaseSensorPacketized):
         #Set Your Method of Radar Processing Here
         self.radar_method = radar_method.RadarMethodDetectionRootMusicAndESPRIT(config, self.ncores)
         # self.radar_method_doppler = RadarMethod.RadarMethodDopplerFFT(config, self.ncores)
-        #self.radar_method_doppler = None
         # self.radar_method_aoa = RadarMethod.RadarMethodAoAESPRIT(config, self.ncores)
         #self.radar_method_aoa = RadarMethod.RadarMethodAoAFFT(config, self.ncores)
-        #self.radar_method_aoa = None
 
     def get_frame_size(self):
         return self.N * 32 * 2 * self.n_rx_elements * self.nSweep / 8
 
     @classmethod
     def parse_frame(cls, frame, time_stamp, game_time):
+        print('Radar     : parse frame: %d, %d' % (time_stamp, game_time))
         return {
             'game_time': game_time,
+            'time_stamp': time_stamp,
             'data': frame
         }
 
-    def process_bound_data(self, data):
-        self.bounding_distances = data['radar_distances']
-        self.bounding_angles = data['radar_angles']
-        self.bounding_velocities = data['radar_velocities']
-        self.bounding_game_time = data['game_time']
-        self.bounding_time_stamp = data['time_stamp']
+    def get_message(self):
+        print('%s: get_message' % self.name)
+        data = self.q_data.peek()
+        data.update(self.process_radar_data_cube(data['data']))
+        print('%s: data=%s' % (self.name, str(data.keys())))
+        print('            obstacles=%d' % len(data['obstaclesR']))
+        return data
 
     def process_radar_data_cube(self, data):
         numberOfItems = self.N * self.n_rx_elements * self.nSweep * 2

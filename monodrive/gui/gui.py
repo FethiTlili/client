@@ -9,7 +9,7 @@ Widgets = {
     IMU: IMUWidget,
     Lidar: LidarWidget,
     MultiCamera: MultiCameraWidget,
-#    Radar: RadarWidget,
+    Radar: RadarWidget,
     RPM: RPMWidget,
     Waypoint: WaypointWidget
 }

@@ -310,7 +310,7 @@ class BaseSensor(multiprocessing.Process):
 
             if packet_header is not None and received == header_size:
                 length, time_stamp, game_time = struct.unpack('=IIf', packet_header)
-                # print("{0} packet received l:{1} t:{2} g:{3}".format(self.name, length, time_stamp, game_time))
+                print("{0} packet received l:{1} t:{2} g:{3}".format(self.name, length, time_stamp, game_time))
                 length = length - header_size
 
                 received, packet = self.read(length)
@@ -374,7 +374,7 @@ class BaseSensor(multiprocessing.Process):
                 print("packet exception: {0}".format(e))
                 pass
 
-            # print(self.name, ':', len(packet))
+            print(self.name, ':', len(packet))
             if packet is not None:
                 self.number_of_packets += 1
                 self.receiving_data = True

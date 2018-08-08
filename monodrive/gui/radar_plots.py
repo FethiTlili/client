@@ -11,6 +11,9 @@ except ImportError:
 
 
 class BaseRadarMethod:
+    def __init__(self):
+        self.max_number_of_obstacles = 256
+
     def setup_radar_plots(self, **kwargs):
         raise NotImplemented
 
@@ -24,32 +27,34 @@ class BaseRadarMethod:
 
 class RadarMethodDetectionRootMusicAndESPRIT(BaseRadarMethod):
 
-    def setup_radar_plots(self, subplot1, subplot2, data):
+    def setup_radar_plots(self, subplot1, subplot2, data={}):
         subplot1.grid(visible=True)
-        AOA_handle, = subplot1.plot(data['obstaclesA'], data['obstaclesR'],
+        AOA_handle, = subplot1.plot(data.get('obstaclesA',[]),
+                                    data.get('obstaclesR',[]),
                                     linestyle='None', marker='s', markerfacecolor = 'r', markeredgecolor = 'r')
-        if len(data['obstaclesR']) > 20:  #to adjust table vertical position in the figure
+        if len(data.get('obstaclesR',[])) > 20:  #to adjust table vertical position in the figure
             max_table_size = 27
         else:
             max_table_size = 20
 
-        obstacles_handle = subplot2.table(cellText=data['obstacles'][0:max_table_size],
+        obstacles = np.array(self.max_number_of_obstacles * [6 * [0]])
+        obstacles_handle = subplot2.table(cellText=obstacles[0:max_table_size],
                                           colLabels=("Obstacle", "Range", "Speed", "AoA", "RCS", "Power\n level"),
                                           loc='center')
         obstacles_handle.auto_set_font_size(False)
         obstacles_handle.set_fontsize(5.5)
         for i in range(0,6):
-            for j in range(len(data['obstaclesR']) + 1, max_table_size + 1):
+            for j in range(len(data.get('obstaclesR',[])) + 1, max_table_size + 1):
                     obstacles_handle._cells[(j,i)]._text.set_text('')
                     obstacles_handle._cells[(j,i)].set_linewidth(0)
 
 
-        self.old_size = len(data['obstaclesR'])
+        self.old_size = len(data.get('obstaclesR',[]))
 
         return AOA_handle, obstacles_handle
 
     def set_data(self, handle1, handle2, data):
-        obstacles = np.array([])
+        obstacles = np.array(self.max_number_of_obstacles * [6 * [0]])
         if len(data):
             obstacles[0:len(data['obstaclesR']),   0] = range(0, len(data['obstaclesR']))
             obstacles[0:len(data['obstaclesR']),   1] = data['obstaclesR']

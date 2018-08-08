@@ -27,6 +27,7 @@ import time
 from PIL import Image
 from PIL import ImageTk
 
+from . import radar_plots
 
 matplotlib.use('TkAgg')
 
@@ -40,8 +41,10 @@ class SensorWidget(object):
         self.last_frame = None
 
     def render(self):
+        print('%s: --->  render start' % self.name)
         data = self.sensor.get_message()
         if data is self.last_frame:
+            print('%s: <---  render skip' % self.name)
             time.sleep(.1)
             return
 
@@ -49,6 +52,7 @@ class SensorWidget(object):
         self.last_frame = data
         if self.sensor:
             self.sensor.update_sensors_got_data_count()
+        print('%s: <---  render end' % self.name)
 
     def update_widget(self, data):
         raise NotImplemented
@@ -603,6 +607,8 @@ class RadarWidget(MatplotlibSensorUI):
         self.bounding_game_time = None
         self.bounding_time_stamp = None
 
+        self.radar_plots = radar_plots.RadarMethodDetectionRootMusicAndESPRIT()
+
     def process_bound_data(self, data):
         self.bounding_distances = data['radar_distances']
         self.bounding_angles = data['radar_angles']
@@ -611,16 +617,16 @@ class RadarWidget(MatplotlibSensorUI):
         self.bounding_time_stamp = data['time_stamp']
 
     def update_views(self, frame):
-        self.view_lock.acquire()
-
-        self.set_radar_method_data(self.AOA_handle, self.obstacles_handle)
+#        self.view_lock.acquire()
 
         if self.sensor.bounding_box is not None:
             self.AOA_bounding_handle.set_xdata(self.bounding_angles)
             self.AOA_bounding_handle.set_ydata(self.bounding_distances)
 
-        self.view_lock.release()
-        return self.AOA_subplot, self.AOA_handle, self.obstacles_handle, self.AOA_bounding_handle
+#        self.view_lock.release()
+        if self.sensor.bounding_box:
+            return self.AOA_subplot, self.AOA_handle, self.obstacles_handle, self.AOA_bounding_handle
+        return self.AOA_subplot, self.AOA_handle, self.obstacles_handle
 
     def initialize_views(self):
         self.view_lock.acquire()
@@ -633,7 +639,7 @@ class RadarWidget(MatplotlibSensorUI):
         self.obstacles_table_subplot.axis('tight')
         self.obstacles_table_subplot.axis('off')
         # self.doppler_handle = self.radar_plot.setup_subplots(self.doppler_subplot)
-        self.AOA_handle, self.obstacles_handle = self.setup_radar_plots(self.AOA_subplot,
+        self.AOA_handle, self.obstacles_handle = self.radar_plots.setup_radar_plots(self.AOA_subplot,
                                                                         self.obstacles_table_subplot)
 
         if self.sensor.bounding_box is not None:
@@ -650,50 +656,36 @@ class RadarWidget(MatplotlibSensorUI):
         # self.radar_plot.tight_layout(pad=0.4, w_pad=0.5, h_pad=1.0)
         self.view_lock.release()
 
-    def show_radar_plots(self):
-        if self.radar_method.has_data():
+    def show_radar_plots(self, data):
+        self.radar_plots.set_data(self.AOA_handle, self.obstacles_handle, data)
 
-            self.radar_method.set_data(self.AOA_handle, self.obstacles_handle)
+        game_time_string = "GameTime: " + str(data['game_time'])
+        if not hasattr(self, 'game_time_text_handle'):
+            self.game_time_text_handle = self.AOA_subplot.text(0, 0, game_time_string, fontsize=8)
+        else:
+            self.game_time_text_handle.set_text(game_time_string)
 
-            game_time_string = "GameTime: " + str(self.game_time)
-            if not hasattr(self, 'game_time_text_handle'):
-                self.game_time_text_handle = self.AOA_subplot.text(0, 0, game_time_string, fontsize=8)
-            else:
-                self.game_time_text_handle.set_text(game_time_string)
+        if self.sensor.bounding_box is not None:
+            self.AOA_bounding_handle.set_xdata(self.bounding_angles)
+            self.AOA_bounding_handle.set_ydata(self.bounding_distances)
 
-            if self.sensor.bounding_box is not None:
-                self.AOA_bounding_handle.set_xdata(self.bounding_angles)
-                self.AOA_bounding_handle.set_ydata(self.bounding_distances)
-
-        self.AOA_subplot.figure.canvas.flush_events()
+        #self.AOA_subplot.figure.canvas.flush_events()
 
     def update_widget(self, data):
+        print("update radar start")
         if self.sensor.bounding_box is not None:
             bounding_data = self.sensor.bounding_box.q_vehicle.peek()
             self.process_bound_data(bounding_data)
 
-        self.game_time = data['game_time']
-        packetized_data = data['data']
+        #self.view_lock.acquire()
+        self.show_radar_plots(data)
 
-        self.view_lock.acquire()
-        if len(packetized_data) > 0:
-            self.sensor.process_radar_data_cube(packetized_data)
-            #print('Radar Processing Time: {0}'.format(time.time() - start_time))
-            if self.last_data_frame_processed:
-                self.last_data_frame_processed = False
-                #print('Radar Processing: {0}'.format(time.time() - start_time))
-                # if self.radar_plot is None and self.radar_method is not None:
-                #    self.setup_radar_plots()
-                # if self.radar_signals is None and self.radar_method is not None:
-                    # self.setup_radar_signals()
-                # if self.radar_method is not None:
-                #    self.show_radar_plots()
-                    # self.show_radar_signals()
+        #self.view_lock.release()
 
-        self.view_lock.release()
         if self.sensor.bounding_box:
             self.sensor.bounding_box.update_sensors_got_data_count()
         self.sensor.update_sensors_got_data_count()
+        print("update radar end")
 
 
 class RPMWidget(TkinterSensorUI):
