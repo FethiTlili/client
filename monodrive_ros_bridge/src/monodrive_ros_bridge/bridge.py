@@ -28,6 +28,7 @@ from monodrive import Simulator, SimulatorConfiguration, VehicleConfiguration
 from monodrive_ros_bridge.markers import PlayerAgentHandler, NonPlayerAgentsHandler
 from monodrive_ros_bridge.sensors import BoundingBoxHandler, CameraHandler, \
     GpsHandler, LidarHandler, ImuHandler, RpmHandler, WaypointHandler
+from monodrive_ros_bridge.world import WorldMapHandler
 
 from monodrive.vehicles import SimpleVehicle
 
@@ -41,7 +42,7 @@ class RosVehicle(SimpleVehicle):
     def start(self):
         rospy.loginfo("starting vehicle process")
         self.running = True
-        super(RosVehicle, self).start()
+        super(RosVehicle, self).start(False)
 
     def run(self):
         rospy.loginfo("running vehicle process")
@@ -77,7 +78,11 @@ class MonoRosBridge(object):
         self.vehicle_config = VehicleConfiguration(params['VehicleConfig'])
 
         self.simulator = Simulator(simulator_config)
+        self.simulator.send_simulator_configuration()
+
         self.vehicle = self.simulator.start_vehicle(self.vehicle_config, RosVehicle)
+        self.simulator.send_vehicle_configuration(self.vehicle_config)
+        self.vehicle.start()
 
         self.param_sensors = params.get('sensors', {})
 
@@ -91,11 +96,13 @@ class MonoRosBridge(object):
         self.mono_game_stamp = 0
         self.mono_platform_stamp = 0
 
+        self.world_handler = WorldMapHandler(
+            "monodrive", process_msg_fun=self.process_msg)
         # creating handler to handle vehicles messages
         self.player_handler = PlayerAgentHandler(
-            "player_vehicle", process_msg_fun=self.process_msg)
-        self.non_players_handler = NonPlayerAgentsHandler(
-            "vehicles", process_msg_fun=self.process_msg)
+            "ego", process_msg_fun=self.process_msg)
+        # self.non_players_handler = NonPlayerAgentsHandler(
+        #    "vehicles", process_msg_fun=self.process_msg)
 
         # creating handler for sensors
         self.sensors = {}
@@ -200,10 +207,24 @@ class MonoRosBridge(object):
 #            rospy.loginfo("waiting for data")
 #            self.vehicle.sensor_data_ready.wait()
 
+            # handle time
+            vehicle_transform = self.vehicle.get_transform()
+            game_time = rospy.Time.now()
+            if game_time is not None:
+                self.cur_time = game_time # rospy.Time.from_sec(game_time * 1e-3)
+                self.compute_cur_time_msg()
+                print("gametime:", game_time, "curtime:", self.cur_time)
+
+            self.world_handler.process_msg(self.cur_time)
+
+            # handle agents
+            self.player_handler.process_msg(
+                vehicle_transform, cur_time=self.cur_time)
+
             rospy.loginfo("processing data")
             for sensor in self.vehicle.sensors:
                 if self.sensors.get(sensor.type, None):
-                    rospy.loginfo("getting data from {0}{1}".format(sensor.type,sensor.sensor_id))
+                    rospy.loginfo("getting data from {0}{1}".format(sensor.type, sensor.sensor_id))
 
                     processor = None
                     sensors = self.sensors[sensor.type]
@@ -223,13 +244,13 @@ class MonoRosBridge(object):
             # publish all messages
             self.send_msgs()
 
-            self.vehicle.sensor_data_ready.clear()
+            self.vehicle.all_sensors_ready.clear()
             control_data = self.vehicle.drive(self.vehicle.sensors, None)
             rospy.loginfo("--> {0}".format(control_data))
             self.vehicle.send_control_data(control_data)
 
             rospy.loginfo("waiting for data")
-            self.vehicle.sensor_data_ready.wait()
+            self.vehicle.all_sensors_ready.wait()
 
             '''
             measurements, sensor_data = self.client.read_data()
