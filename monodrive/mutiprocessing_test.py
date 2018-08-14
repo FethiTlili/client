@@ -172,6 +172,8 @@ class Sensor(multiprocessing.Process):
         data = b''
         while received < length and not self.stop_event.is_set():
             recv_buffer = self.sock.recv(length - received)
+            if recv_buffer is None:
+                raise Exception("error reading from socket")
             data += recv_buffer
             received += len(recv_buffer)
 
@@ -304,6 +306,7 @@ class Image_Message_Server(multiprocessing.Process):
         length = len(pickle.dumps(image, protocol = -1))
         conn, addr = self.sock.accept()
         conn.settimeout(10)
+        #conn.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 4000000)
         print('Connected on %s by %s' % (self.port_number, addr))
         self.start_time = time.time()
         for n in range(NUMBER_OF_MESSAGES):
@@ -371,7 +374,7 @@ if __name__ == "__main__":
     [sensor.start() for sensor in sensors]
     display.start()
 
-    signal_done_event.wait(timeout = 30)
+    signal_done_event.wait()
     #time.sleep(1)
 
     display.stop()
